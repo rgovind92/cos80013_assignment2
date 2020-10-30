@@ -209,7 +209,8 @@ def visualize_tokens(text, save_to=False, show=False):
     if save_to:
       plt.savefig(save_to)
 
-    plt.show()
+    if show:
+      plt.show()
 
 def replace_gibberish(data, replacement, gibberish_matrix, threshold):
   return ' '.join([replacement if avg_transition_prob(_, gibberish_matrix) <= threshold else _ for _ in data.split()])
