@@ -1,6 +1,7 @@
 import os
 import sys
 import pathlib
+import argparse
 from pdb import set_trace
 import string
 import pickle
@@ -28,7 +29,9 @@ from .. import (
   visualize_tokens,
   clean,
   bar_plot,
-  sort_freq_dist
+  sort_freq_dist,
+  detokenize,
+  deleet
 )
 
 pd.options.mode.chained_assignment = None
@@ -55,11 +58,11 @@ def ___predict(texts):
   return classifier.predict(vectorizer.transform([detokenize(text) for text in texts]))
 
 def ____predict(texts):
-  return classifier.predict(vectorizer.transform([texts]))
+  return classifier.predict(vectorizer.transform(texts))
 
 ham_dir = os.path.join('app', 'data', 'enron', 'ham')
 spam_dir = os.path.join('app', 'data', 'enron', 'spam')
-csv_path = os.path.join('app', 'data', 'enron', 'enron.csv')
+csv_path = os.path.join('app', 'detect', 'enron.csv')
 gibberish_model_path = os.path.join('app', 'gibberish_detector', 'gibberish_model.pki')
 
 results_dir = os.path.join('app', 'results', 'detect')
@@ -73,24 +76,45 @@ results_path = os.path.join(results_dir, 'results.csv')
 false_positives_results_path = os.path.join(results_dir, 'false_positive_results.csv')
 false_negatives_results_path = os.path.join(results_dir, 'false_negative_results.csv')
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--ham', help='path to the directory that contains ham emails')
+parser.add_argument('--spam', help='path to the directory that contains spam emails')
+
+args = parser.parse_args()
+
+if args.ham:
+  if pathlib.Path(os.path.abspath(args.ham)).is_dir():
+    ham_dir = args.ham
+
+if args.spam:
+  if pathlib.Path(os.path.abspath(args.spam)).is_dir():
+    spam_dir = args.spam
+
 if not pathlib.Path(gibberish_model_path).is_file():
   try:
+    print('\nGibberish model not found at ' + gibberish_model_path + '! Training it now...')
     train_gibberish_model()
   except:
-    print('An error occurred while training the gibberish model')
+    print('\nAn error occurred while training the gibberish model')
     sys.exit(1)
 
 gibberish_model = pickle.load(open(gibberish_model_path, 'rb'))
 gibberish_matrix = gibberish_model['mat']
 gibberish_threshold = gibberish_model['thresh']
 
+print('\nGibberish model loaded!')
+
 if not pathlib.Path(csv_path).is_file():
+  print('\n\n' + csv_path + ' not found! Reading from ' + spam_dir + ' and ' + ham_dir)
   data = read_data_from_dir(spam_dir, 'spam')
   data = read_data_from_dir(ham_dir, 'ham', data)
   data['text'] = data['text'].apply(pre_process)
   data.to_csv(csv_path)
+  print('Data read successfully and written to ' + csv_path)
 
-data = pd.read_csv(csv_path)
+else:
+  print('\n\nReading data from ' + csv_path + '...')
+  data = pd.read_csv(csv_path)
 
 spam_text = ' '.join(data[data['label'] == 'spam']['text'])
 ham_text = ' '.join(data[data['label'] == 'ham']['text'])
@@ -109,8 +133,7 @@ bar_plot(
   'Word size',
   'Number of words',
   'Plot of the sizes of words in spam mails',
-  save_to=spam_word_size_viz,
-  show=True
+  spam_word_size_viz
 )
 
 bar_plot(
@@ -118,16 +141,11 @@ bar_plot(
   'Word size',
   'Number of words',
   'Plot of the sizes of words in ham mails',
-  save_to=ham_word_size_viz,
-  show=True
+  ham_word_size_viz
 )
 
-set_trace()
-
-visualize_tokens(ham_text, saveto=hammy_words_viz)
-visualize_tokens(spam_text, saveto=spammy_words_viz)
-
-
+visualize_tokens(ham_text, save_to=hammy_words_viz)
+visualize_tokens(spam_text, save_to=spammy_words_viz)
 
 # Change 1
 data = replace_gibberish_in_spam(data, gibberish_matrix, gibberish_threshold)
@@ -148,13 +166,14 @@ x_train, x_test, y_train, y_test, idx_train, idx_test = train_test_split(
 )
 
 classifier = MultinomialNB()
+print('\n\nFitting the model...')
 classifier.fit(x_train, y_train)
 
 pred = classifier.predict(x_test)
 
+print('\n\nPrediction complete! Results:\n\n')
 print('Confusion matrix\n', confusion_matrix(y_test, pred))
-print('\n')
-print('Accuracy: ', accuracy_score(y_test, pred))
+print('\n\nAccuracy: ', accuracy_score(y_test, pred))
 
 out_df = pd.DataFrame()
 
@@ -169,17 +188,31 @@ out_false_negatives_df = out_df[out_df['label'] == 'spam'][out_df['predicted_lab
 out_false_positives_df.to_csv(false_positives_results_path)
 out_false_negatives_df.to_csv(false_negatives_results_path)
 
-set_trace()
+print('\n\nResults written to ' + results_path)
 
 # Defence tests:
 examples = [
-  'Win a chance to receive free gifts today! Valid for a limited time only!',
+  #'Win a chance to receive free gifts today! Valid for a limited time only!',
   'W*i*n a c*h*a*n*c*e t*o r*e*c*e*i*v*e f*r*e*e g*i*f*t*s t*o*d*a*y*! V*a*l*i*d f*o*r a l*i*m*i*t*e*d t*i*m*e o*n*l*y', # tokenization
   'Ԝіո а сhаոсе tο rесеіⅴе frее ցіftѕ tοⅾау! Ꮩаⅼіⅾ fоr а ⅼіⅿіtеⅾ tіⅿе оոⅼу!', # invisible obfuscation
   'Ԝіո а сḣаոсе tο rесеіⅴе frее ģіftѕ tοḋау! Ꮩаⅼіḋ fоr а ⅼіⅿіtеḋ tіⅿе оոⅼу!', # weak obfuscation
-  'Win a chance to receive free gifts today! Valid for a limited time only!', # medium obfuscation
+  'Ẃɩռ ắ ĉẖӑῄćḛ ŧợ ӷȩϛḝίὗę ẛřȅḗ ģῑẛṭś ȶʘḓǻӳ! Ѵǎḻἳḑ ẛổȑ ȁ ƚίṃīṯëɗ էίṃē ṑṉḻӯ!', # medium obfuscation
   'Ẃῑῇ ἀ ¢ḫἁἧċé ṯȏ ɼεçėȉύȇ ƒȓēϱ գǐẛեṡ ṫṍƌȃӳ! Ѷǡŀі₫ ḟṓг ἇ ƚίɱὶէёḍ †ỉḿḛ ӧηɭγ!', # strong obfuscation
   'W1n 4 ch4nc3 t0 r3c31v3 fr33 g1fts t0d4y! V4l1d f0r a l1m1t3d t1m3 0nly!', # leet obfuscation
   'skadnmaskfm sakfmkamf ksafmkasm safasmki ksfmkfsma kafsnksfm Win a chance to receive free gifts today! Valid for a limited time only!' # weak statistical
 ]
 
+print('\nPredictions without sanitization:')
+print(____predict(examples))
+
+print('\nPredictions with detokenization:')
+print(___predict(examples))
+
+print('\nPredictions with detokenization and deleetion:')
+print(__predict(examples))
+
+print('\nPredictions with detokenization, deleetion, and deunicodification:')
+print(_predict(examples))
+
+print('\nPredictions with detokenization, deleetion, deunicodification, and gibberish removal:')
+print(predict(examples))
