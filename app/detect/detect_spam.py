@@ -15,7 +15,6 @@ from nltk.corpus import stopwords, words
 from nltk import FreqDist
 
 from sklearn.feature_extraction.text import CountVectorizer
-from autocorrect import Speller
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score
@@ -76,8 +75,6 @@ spam_word_size_viz = os.path.join(results_dir, 'spam_word_size.png')
 results_path = os.path.join(results_dir, 'results.csv')
 false_positives_results_path = os.path.join(results_dir, 'false_positive_results.csv')
 false_negatives_results_path = os.path.join(results_dir, 'false_negative_results.csv')
-
-set_trace()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ham', help='path to the directory that contains ham emails')
@@ -206,8 +203,6 @@ examples = [
 ]
 
 print('\nTesting on the following examples:')
-
-set_trace()
 
 for example in examples:
   print(example)
